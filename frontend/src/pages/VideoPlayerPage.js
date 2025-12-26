@@ -28,6 +28,7 @@ const VideoPlayerPage = () => {
   const [showQuiz, setShowQuiz] = useState(false);
   const [quizAnswers, setQuizAnswers] = useState([]);
   const [quizResult, setQuizResult] = useState(null);
+  const [nextVideo, setNextVideo] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -75,6 +76,15 @@ const VideoPlayerPage = () => {
     }
   };
 
+  const fetchNextVideo = async () => {
+    try {
+      const response = await axios.get(`${API}/recommendations/next-video`, getAxiosConfig());
+      setNextVideo(response.data.video);
+    } catch (error) {
+      console.error('Failed to fetch next video:', error);
+    }
+  };
+
   const updateProgress = async (percentage) => {
     try {
       await axios.post(
@@ -119,6 +129,9 @@ const VideoPlayerPage = () => {
       
       setQuizResult(response.data);
       toast.success(`Quiz completed! Score: ${Math.round(response.data.score)}%`);
+      
+      // Fetch next video recommendation
+      fetchNextVideo();
     } catch (error) {
       console.error('Failed to submit quiz:', error);
       toast.error('Failed to submit quiz');
@@ -314,6 +327,23 @@ const VideoPlayerPage = () => {
                         data-testid="retake-quiz-btn"
                       >
                         Retake Quiz
+                      </Button>
+                      
+                      {/* Next Video Button */}
+                      <Button
+                        className="gap-2"
+                        onClick={() => {
+                          if (nextVideo) {
+                            navigate(`/video/${nextVideo.id}`);
+                            window.location.reload(); // Force reload to reset state for new video
+                          }
+                        }}
+                        disabled={quizResult.score < 75 || !nextVideo}
+                        data-testid="next-video-btn"
+                        title={quizResult.score < 75 ? "Score 75% or higher to unlock next video" : "Go to next recommended video"}
+                      >
+                        Next Video
+                        {nextVideo && <span className="text-xs opacity-75 hidden sm:inline">({nextVideo.title})</span>}
                       </Button>
                     </div>
                   </CardContent>

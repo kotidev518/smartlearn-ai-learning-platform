@@ -29,3 +29,5 @@ yarn-error.log*
 .pnp.js
 coverage/
 frontend/.env
+
+backend/serviceAccountKey.json

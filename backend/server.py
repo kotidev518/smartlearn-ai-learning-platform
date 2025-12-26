@@ -14,6 +14,8 @@ import bcrypt
 from sentence_transformers import SentenceTransformer
 import numpy as np
 from collections import defaultdict
+import firebase_admin
+from firebase_admin import credentials, storage
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -32,6 +34,58 @@ JWT_EXPIRATION_HOURS = 72
 print("Loading SBERT model...")
 sbert_model = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
 print("SBERT model loaded successfully")
+
+# Initialize Firebase Admin
+try:
+    cred_path = os.environ.get('FIREBASE_CREDENTIALS', 'serviceAccountKey.json')
+    if os.path.exists(cred_path):
+        cred = credentials.Certificate(cred_path)
+        firebase_admin.initialize_app(cred, {
+            'storageBucket': os.environ.get('FIREBASE_STORAGE_BUCKET')
+        })
+        print("Firebase Admin initialized successfully")
+    else:
+        print(f"Warning: Firebase credentials not found at {cred_path}")
+except Exception as e:
+    print(f"Error initializing Firebase Admin: {e}")
+
+def get_video_url(url_or_path: str) -> str:
+    """
+    Transforms a stored video path into a usable URL.
+    - If it's already a full URL (http/https), returns it as is.
+    - If it's a gs:// URI, extracts the path.
+    - If it's a storage path, generates a signed URL.
+    """
+    if not url_or_path:
+        return ""
+    
+    if url_or_path.startswith(('http://', 'https://')):
+        return url_or_path
+    
+    # Handle gs:// format
+    blob_path = url_or_path
+    if url_or_path.startswith('gs://'):
+        # Format: gs://bucket-name/path/to/file
+        try:
+            parts = url_or_path.replace('gs://', '').split('/', 1)
+            if len(parts) == 2:
+                # We ignore the bucket part if we are using the default bucket, 
+                # or we could verify it matches. For now, let's just use the path.
+                blob_path = parts[1]
+            else:
+                # Malformed gs:// uri or root of bucket
+                return url_or_path
+        except Exception:
+            pass
+            
+    # Assume it's a path in Firebase Storage
+    try:
+        bucket = storage.bucket()
+        blob = bucket.blob(blob_path)
+        return blob.generate_signed_url(expiration=timedelta(hours=1))
+    except Exception as e:
+        print(f"Error generating signed URL for {url_or_path}: {e}")
+        return url_or_path
 
 # Create the main app
 app = FastAPI()
@@ -248,6 +302,12 @@ async def get_course(course_id: str, user = Depends(get_current_user)):
 async def get_videos(course_id: Optional[str] = None, user = Depends(get_current_user)):
     query = {"course_id": course_id} if course_id else {}
     videos = await db.videos.find(query, {"_id": 0}).sort("order", 1).to_list(1000)
+    
+    # Process URLs
+    for video in videos:
+        if 'url' in video:
+            video['url'] = get_video_url(video['url'])
+            
     return videos
 
 @api_router.get("/videos/{video_id}", response_model=Video)
@@ -255,6 +315,10 @@ async def get_video(video_id: str, user = Depends(get_current_user)):
     video = await db.videos.find_one({"id": video_id}, {"_id": 0})
     if not video:
         raise HTTPException(status_code=404, detail="Video not found")
+        
+    if 'url' in video:
+        video['url'] = get_video_url(video['url'])
+        
     return video
 
 @api_router.post("/videos/{video_id}/progress")
@@ -501,6 +565,11 @@ async def get_next_video_recommendation(user = Depends(get_current_user)):
         if video.get('order', 0) < 10:  # Early videos in sequence
             score += 10 - video.get('order', 0)
         
+        # 5. Course consistency (High priority)
+        if last_watched_video and video['course_id'] == last_watched_video['course_id']:
+            score += 100
+            reasons.append(f"Continue in '{last_watched_video.get('course_id', 'this course')}'")
+        
         candidate_videos.append({
             'video': video,
             'score': score,
@@ -518,8 +587,12 @@ async def get_next_video_recommendation(user = Depends(get_current_user)):
         recommended = best['video']
         reason = best['reason']
     
+    recommended_video = Video(**recommended)
+    if hasattr(recommended_video, 'url'):
+        recommended_video.url = get_video_url(recommended_video.url)
+
     return NextVideoRecommendation(
-        video=Video(**recommended),
+        video=recommended_video,
         reason=reason,
         mastery_scores=mastery_dict
     )
@@ -527,14 +600,20 @@ async def get_next_video_recommendation(user = Depends(get_current_user)):
 # ==================== Initialize Sample Data ====================
 
 @api_router.post("/init-data")
-async def initialize_data():
+async def initialize_data(force: bool = False):
     """Initialize sample courses and videos"""
     from uuid import uuid4
     
     # Check if data exists
-    existing = await db.courses.count_documents({})
-    if existing > 0:
-        return {"message": "Data already initialized"}
+    if force:
+        print("Forced re-initialization: clearing existing data...")
+        await db.courses.delete_many({})
+        await db.videos.delete_many({})
+        await db.quizzes.delete_many({})
+    else:
+        existing = await db.courses.count_documents({})
+        if existing > 0:
+            return {"message": "Data already initialized. Use force=true to override."}
     
     # Sample courses
     courses_data = [
@@ -577,7 +656,7 @@ async def initialize_data():
             "course_id": "course-1",
             "title": "Introduction to Python",
             "description": "Learn Python basics and syntax",
-            "url": "https://storage.googleapis.com/sample-videos/python-intro.mp4",
+            "url": "gs://online-course-platform-68c2c.firebasestorage.app/DSA/01. Big O Intro.mp4",
             "duration": 600,
             "difficulty": "Easy",
             "topics": ["Python", "Programming"],
@@ -589,7 +668,7 @@ async def initialize_data():
             "course_id": "course-1",
             "title": "Variables and Data Types",
             "description": "Understanding Python variables",
-            "url": "https://youtu.be/_OZIAHg5i7M?si=dQR_BSTDPJLpgtwh",
+            "url": "gs://online-course-platform-68c2c.firebasestorage.app/DSA/02. Big O Worst Case.mp4",
             "duration": 480,
             "difficulty": "Easy",
             "topics": ["Python", "Variables"],
@@ -601,7 +680,7 @@ async def initialize_data():
             "course_id": "course-1",
             "title": "Functions and Methods",
             "description": "Creating reusable code with functions",
-            "url": "https://storage.googleapis.com/sample-videos/python-functions.mp4",
+            "url": "gs://online-course-platform-68c2c.firebasestorage.app/DSA/03. Big O O(n).mp4",
             "duration": 720,
             "difficulty": "Easy",
             "topics": ["Python", "Functions"],
@@ -613,7 +692,7 @@ async def initialize_data():
             "course_id": "course-1",
             "title": "Control Flow and Loops",
             "description": "Master if statements and loops",
-            "url": "https://youtu.be/38svC3U7hVo?si=XbgGc5vqNrCML8ZQ",
+            "url": "gs://online-course-platform-68c2c.firebasestorage.app/DSA/04. Big O Drop Constants.mp4",
             "duration": 540,
             "difficulty": "Easy",
             "topics": ["Python", "Programming"],
