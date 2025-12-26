@@ -838,6 +838,16 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+@app.on_event("startup")
+async def startup_db_client():
+    try:
+        await db.courses.create_index("id", unique=True)
+        await db.videos.create_index("id", unique=True)
+        await db.quizzes.create_index("id", unique=True)
+        print("Verified unique indexes on courses, videos, and quizzes")
+    except Exception as e:
+        logger.warning(f"Could not create unique indexes (duplicates might exist): {e}")
+
 @app.on_event("shutdown")
 async def shutdown_db_client():
     client.close()
