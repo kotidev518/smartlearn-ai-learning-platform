@@ -27,10 +27,9 @@ Your local MongoDB still has the old YouTube links. You need to force it to upda
 
 ### Step 4: Fix Browser Blocking (CORS)
 *Note: This only needs to be done once per bucket. If the team lead has already done this, you can skip to Step 5.*
-1.  Ensure you have `gsutil` installed (part of Google Cloud SDK).
-2.  Run this command from the project root:
+1.  Run this command from the project root:
     ```bash
-    gsutil cors set cors.json gs://online-course-platform-68c2c.firebasestorage.app
+    python backend/apply_cors.py
     ```
 
 ### Step 5: Verify

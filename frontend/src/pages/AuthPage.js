@@ -41,7 +41,37 @@ const AuthPage = () => {
       }
       navigate('/dashboard');
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Authentication failed');
+      // Handle Firebase Auth errors
+      let errorMessage = 'Authentication failed';
+      
+      if (error.code) {
+        // Firebase Auth error codes
+        switch (error.code) {
+          case 'auth/email-already-in-use':
+            errorMessage = 'This email is already registered. Please sign in.';
+            break;
+          case 'auth/weak-password':
+            errorMessage = 'Password should be at least 6 characters.';
+            break;
+          case 'auth/invalid-email':
+            errorMessage = 'Please enter a valid email address.';
+            break;
+          case 'auth/user-not-found':
+          case 'auth/wrong-password':
+          case 'auth/invalid-credential':
+            errorMessage = 'Invalid email or password.';
+            break;
+          case 'auth/too-many-requests':
+            errorMessage = 'Too many attempts. Please try again later.';
+            break;
+          default:
+            errorMessage = error.message || 'Authentication failed';
+        }
+      } else if (error.response?.data?.detail) {
+        errorMessage = error.response.data.detail;
+      }
+      
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }

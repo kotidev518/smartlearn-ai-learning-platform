@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
-import axios from 'axios';
+import { courseService } from '@/services/courseService';
 import { Navbar } from '@/components/Navbar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,12 +10,8 @@ import { Play, Clock, ArrowLeft } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
-
 const CourseDetailPage = () => {
   const { courseId } = useParams();
-  const { getAxiosConfig } = useAuth();
   const navigate = useNavigate();
   const [course, setCourse] = useState(null);
   const [videos, setVideos] = useState([]);
@@ -27,12 +23,12 @@ const CourseDetailPage = () => {
 
   const fetchCourseData = async () => {
     try {
-      const [courseRes, videosRes] = await Promise.all([
-        axios.get(`${API}/courses/${courseId}`, getAxiosConfig()),
-        axios.get(`${API}/videos?course_id=${courseId}`, getAxiosConfig())
+      const [courseData, videosData] = await Promise.all([
+        courseService.getCourseById(courseId),
+        courseService.getVideos(courseId)
       ]);
-      setCourse(courseRes.data);
-      setVideos(videosRes.data);
+      setCourse(courseData);
+      setVideos(videosData);
     } catch (error) {
       console.error('Failed to fetch course data:', error);
       toast.error('Failed to load course');

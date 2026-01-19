@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
-import axios from 'axios';
+import { courseService } from '@/services/courseService';
+import { analyticsService } from '@/services/analyticsService';
 import { Navbar } from '@/components/Navbar';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,12 +14,8 @@ import { ArrowLeft, CheckCircle2, XCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
-
 const VideoPlayerPage = () => {
   const { videoId } = useParams();
-  const { getAxiosConfig } = useAuth();
   const navigate = useNavigate();
   const videoRef = useRef(null);
   
@@ -53,18 +50,18 @@ const VideoPlayerPage = () => {
 
   const fetchVideoData = async () => {
     try {
-      const [videoRes, progressRes] = await Promise.all([
-        axios.get(`${API}/videos/${videoId}`, getAxiosConfig()),
-        axios.get(`${API}/videos/${videoId}/progress`, getAxiosConfig())
+      const [videoData, progressData] = await Promise.all([
+        courseService.getVideoById(videoId),
+        courseService.getVideoProgress(videoId)
       ]);
-      setVideo(videoRes.data);
-      setWatchProgress(progressRes.data?.watch_percentage || 0);
+      setVideo(videoData);
+      setWatchProgress(progressData?.watch_percentage || 0);
       
       // Fetch quiz
       try {
-        const quizRes = await axios.get(`${API}/quizzes/${videoId}`, getAxiosConfig());
-        setQuiz(quizRes.data);
-        setQuizAnswers(new Array(quizRes.data.questions.length).fill(-1));
+        const quizData = await courseService.getQuiz(videoId);
+        setQuiz(quizData);
+        setQuizAnswers(new Array(quizData.questions.length).fill(-1));
       } catch (error) {
         console.log('No quiz available for this video');
       }
@@ -78,8 +75,8 @@ const VideoPlayerPage = () => {
 
   const fetchNextVideo = async () => {
     try {
-      const response = await axios.get(`${API}/recommendations/next-video`, getAxiosConfig());
-      setNextVideo(response.data.video);
+      const response = await analyticsService.getNextRecommendation();
+      setNextVideo(response.video);
     } catch (error) {
       console.error('Failed to fetch next video:', error);
     }
@@ -87,14 +84,10 @@ const VideoPlayerPage = () => {
 
   const updateProgress = async (percentage) => {
     try {
-      await axios.post(
-        `${API}/videos/${videoId}/progress`,
-        {
-          watch_percentage: percentage,
-          completed: percentage >= 90
-        },
-        getAxiosConfig()
-      );
+      await courseService.updateVideoProgress(videoId, {
+        watch_percentage: percentage,
+        completed: percentage >= 90
+      });
     } catch (error) {
       console.error('Failed to update progress:', error);
     }
@@ -118,17 +111,13 @@ const VideoPlayerPage = () => {
     }
 
     try {
-      const response = await axios.post(
-        `${API}/quizzes/submit`,
-        {
-          quiz_id: quiz.id,
-          answers: quizAnswers
-        },
-        getAxiosConfig()
-      );
+      const result = await courseService.submitQuiz({
+        quiz_id: quiz.id,
+        answers: quizAnswers
+      });
       
-      setQuizResult(response.data);
-      toast.success(`Quiz completed! Score: ${Math.round(response.data.score)}%`);
+      setQuizResult(result);
+      toast.success(`Quiz completed! Score: ${Math.round(result.score)}%`);
       
       // Fetch next video recommendation
       fetchNextVideo();

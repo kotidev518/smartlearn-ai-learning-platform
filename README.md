@@ -26,7 +26,7 @@ This project requires environment variables and Firebase credentials that are **
     ```
 3.  Install dependencies:
     ```bash
-    
+    pip install -r requirements.txt
     ```
 4.  Configure Environment Variables:
     - Ensure `.env` exists in the `backend` folder with the following:

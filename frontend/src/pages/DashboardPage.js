@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
-import axios from 'axios';
+import { analyticsService } from '@/services/analyticsService';
 import { Navbar } from '@/components/Navbar';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,11 +10,7 @@ import { Sparkles, Play, TrendingUp, Award, BookOpen } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
-
 const DashboardPage = () => {
-  const { getAxiosConfig } = useAuth();
   const navigate = useNavigate();
   const [recommendation, setRecommendation] = useState(null);
   const [progress, setProgress] = useState(null);
@@ -26,12 +22,9 @@ const DashboardPage = () => {
 
   const fetchDashboardData = async () => {
     try {
-      const [recRes, progRes] = await Promise.all([
-        axios.get(`${API}/recommendations/next-video`, getAxiosConfig()),
-        axios.get(`${API}/analytics/progress`, getAxiosConfig())
-      ]);
-      setRecommendation(recRes.data);
-      setProgress(progRes.data);
+      const { recommendation, progress } = await analyticsService.getDashboardData();
+      setRecommendation(recommendation);
+      setProgress(progress);
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error);
       toast.error('Failed to load dashboard');

@@ -1,10 +1,15 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import axios from 'axios';
+import { 
+  createUserWithEmailAndPassword, 
+  signInWithEmailAndPassword, 
+  signOut, 
+  onAuthStateChanged 
+} from 'firebase/auth';
+import { auth } from '@/firebase';
+import { setAuthToken } from '@/services/api';
+import { authService } from '@/services/authService';
 
 const AuthContext = createContext(null);
-
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
@@ -16,56 +21,94 @@ export const useAuth = () => {
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [token, setToken] = useState(localStorage.getItem('token'));
+  const [firebaseUser, setFirebaseUser] = useState(null);
+  const [token, setToken] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Listen to Firebase auth state changes
   useEffect(() => {
-    if (token) {
-      fetchUser();
-    } else {
+    const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
+      setFirebaseUser(fbUser);
+      
+      if (fbUser) {
+        try {
+          // Get Firebase ID token
+          const idToken = await fbUser.getIdToken();
+          setToken(idToken);
+          setAuthToken(idToken);
+          
+          // Fetch user profile from backend
+          const userProfile = await authService.getProfile();
+          setUser(userProfile);
+        } catch (error) {
+          console.error('Failed to fetch user profile:', error);
+          // If user doesn't exist in backend, this is expected for new signups
+          // The register function will handle creating the profile
+          setUser(null);
+        }
+      } else {
+        setToken(null);
+        setAuthToken(null);
+        setUser(null);
+      }
+      
       setLoading(false);
-    }
-  }, [token]);
+    });
 
-  const fetchUser = async () => {
-    try {
-      const response = await axios.get(`${API}/auth/me`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setUser(response.data);
-    } catch (error) {
-      console.error('Failed to fetch user:', error);
-      logout();
-    } finally {
-      setLoading(false);
-    }
-  };
+    return () => unsubscribe();
+  }, []);
+
+  // Refresh token periodically (Firebase tokens expire after 1 hour)
+  useEffect(() => {
+    if (!firebaseUser) return;
+
+    const refreshToken = async () => {
+      try {
+        const newToken = await firebaseUser.getIdToken(true);
+        setToken(newToken);
+        setAuthToken(newToken);
+      } catch (error) {
+        console.error('Failed to refresh token:', error);
+      }
+    };
+
+    // Refresh token every 55 minutes
+    const interval = setInterval(refreshToken, 55 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [firebaseUser]);
 
   const login = async (email, password) => {
-    const response = await axios.post(`${API}/auth/login`, { email, password });
-    setToken(response.data.token);
-    setUser(response.data.user);
-    localStorage.setItem('token', response.data.token);
-    return response.data;
+    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    const idToken = await userCredential.user.getIdToken();
+    setToken(idToken);
+    setAuthToken(idToken);
+    
+    // Fetch user profile
+    const userProfile = await authService.getProfile();
+    setUser(userProfile);
+    
+    return userProfile;
   };
 
   const register = async (email, password, name, initial_level) => {
-    const response = await axios.post(`${API}/auth/register`, {
-      email,
-      password,
-      name,
-      initial_level
-    });
-    setToken(response.data.token);
-    setUser(response.data.user);
-    localStorage.setItem('token', response.data.token);
-    return response.data;
+    // Create Firebase user
+    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    const idToken = await userCredential.user.getIdToken();
+    setToken(idToken);
+    setAuthToken(idToken);
+    
+    // Create user profile in backend
+    const userProfile = await authService.register(name, initial_level);
+    
+    setUser(userProfile);
+    return userProfile;
   };
 
-  const logout = () => {
+  const logout = async () => {
+    await signOut(auth);
     setToken(null);
+    setAuthToken(null);
     setUser(null);
-    localStorage.removeItem('token');
   };
 
   const getAxiosConfig = () => ({
@@ -82,7 +125,7 @@ export const AuthProvider = ({ children }) => {
         register,
         logout,
         getAxiosConfig,
-        isAuthenticated: !!token
+        isAuthenticated: !!token && !!user
       }}
     >
       {children}
