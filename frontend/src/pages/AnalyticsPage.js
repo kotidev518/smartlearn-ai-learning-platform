@@ -29,6 +29,7 @@ const AnalyticsPage = () => {
   const [masteryScores, setMasteryScores] = useState([]);
   const [progress, setProgress] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [isSortedByMastery, setIsSortedByMastery] = useState(false);
 
   useEffect(() => {
     fetchAnalytics();
@@ -299,7 +300,14 @@ const AnalyticsPage = () => {
                 <CardDescription className="text-gray-400 font-medium">Detailed mastery roadmap across your active curriculum</CardDescription>
               </div>
               <div className="flex items-center gap-3">
-                <Button variant="outline" className="rounded-xl border-gray-100 text-gray-500 font-bold text-xs h-10 px-5 hover:bg-gray-50">
+                <Button
+                  variant={isSortedByMastery ? "default" : "outline"}
+                  onClick={() => setIsSortedByMastery(!isSortedByMastery)}
+                  className={`rounded-xl border-gray-100 font-bold text-xs h-10 px-5 transition-all ${isSortedByMastery
+                    ? "bg-indigo-600 text-white shadow-md border-indigo-600"
+                    : "text-gray-500 hover:bg-gray-50"
+                    }`}
+                >
                   Sort by Mastery
                 </Button>
                 <Button className="rounded-xl bg-gradient-primary shadow-lg shadow-purple-500/20 text-xs font-bold h-10 px-5 hover:scale-105 transition-transform">
@@ -310,38 +318,45 @@ const AnalyticsPage = () => {
             <CardContent className="p-10 pt-4">
               {masteryScores.length > 0 ? (
                 <div className="space-y-10">
-                  {masteryScores.map((mastery, index) => {
-                    const level = getMasteryLevel(mastery.score);
-                    const formattedIndex = (index + 1).toString().padStart(2, '0');
-                    return (
-                      <div key={index} className="relative group">
-                        <div className="flex items-center justify-between mb-4">
-                          <div className="flex items-center gap-6">
-                            <span className="text-sm font-black text-indigo-300 tracking-tighter w-6">
-                              {formattedIndex}
-                            </span>
-                            <div className="space-y-1">
-                              <span className="text-xl font-heading font-extrabold text-gray-900 block">
-                                {mastery.topic}
+                  {[...masteryScores]
+                    .sort((a, b) => isSortedByMastery ? b.score - a.score : 0)
+                    .map((mastery, index) => {
+                      const level = getMasteryLevel(mastery.score);
+                      const formattedIndex = (index + 1).toString().padStart(2, '0');
+                      const percentage = Math.round(mastery.score);
+                      return (
+                        <div key={index} className="relative group">
+                          <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center gap-6">
+                              <span className="text-sm font-black text-indigo-300 tracking-tighter w-6">
+                                {formattedIndex}
                               </span>
-                              <span className={`inline-block px-2.5 py-0.5 rounded-full text-[9px] font-black border ${level.color}`}>
-                                {level.label}
-                              </span>
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-3">
+                                  <span className="text-xl font-heading font-extrabold text-gray-900 block">
+                                    {mastery.topic}
+                                  </span>
+                                  <span className="text-sm font-bold text-indigo-500/80">
+                                    {percentage}%
+                                  </span>
+                                </div>
+                                <span className={`inline-block px-2.5 py-0.5 rounded-full text-[9px] font-black border ${level.color}`}>
+                                  {level.label}
+                                </span>
+                              </div>
                             </div>
                           </div>
-                          <div className="w-10 h-4 bg-gradient-primary rounded-sm opacity-80" />
+                          <div className="relative h-2.5 w-full bg-gray-50 rounded-full overflow-hidden">
+                            <motion.div
+                              initial={{ width: 0 }}
+                              animate={{ width: `${mastery.score}%` }}
+                              transition={{ duration: 1, delay: 0.8 + (index * 0.1) }}
+                              className="absolute h-full left-0 top-0 bg-gradient-primary rounded-full shadow-[0_0_10px_rgba(99,102,241,0.3)]"
+                            />
+                          </div>
                         </div>
-                        <div className="relative h-2.5 w-full bg-gray-50 rounded-full overflow-hidden">
-                          <motion.div
-                            initial={{ width: 0 }}
-                            animate={{ width: `${mastery.score}%` }}
-                            transition={{ duration: 1, delay: 0.8 + (index * 0.1) }}
-                            className="absolute h-full left-0 top-0 bg-gradient-primary rounded-full shadow-[0_0_10px_rgba(99,102,241,0.3)]"
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
                 </div>
               ) : (
                 <div className="text-center py-20 text-gray-400 font-medium">
