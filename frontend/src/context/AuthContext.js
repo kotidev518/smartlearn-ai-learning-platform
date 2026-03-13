@@ -3,7 +3,8 @@ import {
   createUserWithEmailAndPassword, 
   signInWithEmailAndPassword, 
   signOut, 
-  onAuthStateChanged 
+  onAuthStateChanged,
+  getRedirectResult
 } from 'firebase/auth';
 import { auth } from '@/firebase';
 import { setAuthToken } from '@/services/api';
@@ -27,6 +28,21 @@ export const AuthProvider = ({ children }) => {
 
   // Listen to Firebase auth state changes
   useEffect(() => {
+    // Process redirect results from Google Sign-In
+    getRedirectResult(auth).then(async (result) => {
+      if (result?.user) {
+        try {
+          const idToken = await result.user.getIdToken();
+          setToken(idToken);
+          setAuthToken(idToken);
+          await authService.googleLogin(result.user.displayName, result.user.email);
+          await checkUser();
+        } catch (err) {
+          console.error('Failed to sync Google user with backend:', err);
+        }
+      }
+    }).catch(err => console.error('Redirect sign-in error:', err));
+
     const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
       setFirebaseUser(fbUser);
       

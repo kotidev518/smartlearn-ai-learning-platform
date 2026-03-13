@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { GraduationCap, Eye, EyeOff, CheckCircle2, XCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
-import { signInWithPopup, GoogleAuthProvider, browserLocalPersistence, browserSessionPersistence, setPersistence, sendPasswordResetEmail } from 'firebase/auth';
+import { signInWithRedirect, GoogleAuthProvider, browserLocalPersistence, browserSessionPersistence, setPersistence, sendPasswordResetEmail } from 'firebase/auth';
 import { auth } from '@/firebase';
 import { authService } from '@/services/authService';
 
@@ -58,29 +58,15 @@ const AuthPage = () => {
     provider.setCustomParameters({ prompt: 'select_account' });
 
     try {
-      // Set persistence based on remember me (for Google, we'll use local as default)
+      // Set persistence before redirecting
       await setPersistence(auth, browserLocalPersistence);
 
-      const result = await signInWithPopup(auth, provider);
-      const user = result.user;
-      await authService.googleLogin(user.displayName, user.email);
-      const userProfile = await checkUser();
-      toast.success('Successfully signed in with Google!');
-      if (userProfile?.role === 'admin') {
-        navigate('/admin');
-      } else {
-        navigate('/dashboard');
-      }
+      // Use redirect instead of popup to avoid COOP policy issues
+      await signInWithRedirect(auth, provider);
+      // The page will redirect to Google — the result is handled in AuthContext
     } catch (error) {
       console.error("Google Sign-In Error:", error);
-      let errorMessage = "Google sign-in failed. Please try again.";
-      if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
-        errorMessage = "Sign-in cancelled.";
-      } else if (error.code === 'auth/popup-blocked') {
-        errorMessage = "Popup blocked. Please allow popups for this site.";
-      }
-      toast.error(errorMessage);
-    } finally {
+      toast.error("Google sign-in failed. Please try again.");
       setLoading(false);
     }
   };
