@@ -28,53 +28,71 @@ export const AuthProvider = ({ children }) => {
 
   // Listen to Firebase auth state changes
   useEffect(() => {
-    // Process redirect results from Google Sign-In
-    getRedirectResult(auth).then(async (result) => {
-      if (result?.user) {
-        try {
+    let isMounted = true;
+
+    const initAuth = async () => {
+      try {
+        // 1. First process any pending redirect results
+        const result = await getRedirectResult(auth);
+        if (result?.user) {
+          console.log("Redirect result found", result.user.email);
           const idToken = await result.user.getIdToken();
           setToken(idToken);
           setAuthToken(idToken);
-          await authService.googleLogin(result.user.displayName, result.user.email);
-          await checkUser();
-        } catch (err) {
-          console.error('Failed to sync Google user with backend:', err);
+          // Ensure the user exists in our SQL backend
+          await authService.googleLogin(result.user.displayName || 'User', result.user.email);
         }
+      } catch (err) {
+        console.error('Redirect sign-in error:', err);
       }
-    }).catch(err => console.error('Redirect sign-in error:', err));
 
-    const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
-      setFirebaseUser(fbUser);
-      
-      if (fbUser) {
-        try {
-          // Get Firebase ID token
-          const idToken = await fbUser.getIdToken();
-          setToken(idToken);
-          setAuthToken(idToken);
-          
-          // Fetch user profile from backend
-          await checkUser();
-        } catch (error) {
-           // Ignore 404s (user might not be registered in backend yet)
-           // The login/register flows will handle backend user creation
-           if (error.response && error.response.status === 404) {
-             setUser(null);
-           } else {
-             console.error('Failed to fetch user profile:', error);
-             setUser(null);
-           }
+      // 2. Then set up the auth state listener
+      const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
+        if (!isMounted) return;
+        setFirebaseUser(fbUser);
+        
+        if (fbUser) {
+          try {
+            const idToken = await fbUser.getIdToken();
+            setToken(idToken);
+            setAuthToken(idToken);
+            
+            await checkUser();
+          } catch (error) {
+             if (error.response && error.response.status === 404) {
+               // User is in Firebase but not in our SQL backend yet.
+               console.log("User not in DB, sycing from Firebase...");
+               try {
+                 await authService.googleLogin(fbUser.displayName || 'User', fbUser.email);
+                 await checkUser();
+               } catch (syncError) {
+                 console.error("Failed to sync user:", syncError);
+                 setUser(null);
+               }
+             } else {
+               console.error('Failed to fetch user profile:', error);
+               setUser(null);
+             }
+          }
+        } else {
+          setToken(null);
+          setAuthToken(null);
+          setUser(null);
         }
-      } else {
-        setToken(null);
-        setAuthToken(null);
-        setUser(null);
-      }
-      
-      setLoading(false);
-    });
+        
+        // Only set loading false after everything is processed
+        setLoading(false);
+      });
 
-    return () => unsubscribe();
+      return unsubscribe;
+    };
+
+    const unsubscribePromise = initAuth();
+
+    return () => {
+      isMounted = false;
+      unsubscribePromise.then(unsub => unsub && unsub());
+    };
   }, []);
 
   const checkUser = async () => {
