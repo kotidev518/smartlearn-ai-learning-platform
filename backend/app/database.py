@@ -36,12 +36,9 @@ def init_firebase():
                     cred = credentials.Certificate(service_account_info)
                     logger.info("Loading Firebase credentials from environment variable")
                 else:
-                    logger.warning(
-                        "Firebase credentials not found. "
-                        "Set FIREBASE_SERVICE_ACCOUNT_JSON env var or provide %s file.",
-                        cred_path,
-                    )
-                    return
+                    msg = f"Firebase credentials not found. Set FIREBASE_SERVICE_ACCOUNT_JSON env var or provide {cred_path} file."
+                    logger.error(msg)
+                    raise RuntimeError(msg)
 
             firebase_admin.initialize_app(cred, {
                 'storageBucket': settings.FIREBASE_STORAGE_BUCKET
@@ -49,6 +46,7 @@ def init_firebase():
             logger.info("Firebase Admin initialized successfully")
     except Exception as e:
         logger.error("Error initializing Firebase Admin: %s", e)
+        raise e
 
 async def ensure_indexes():
     """Create database indexes using the centralized session manager."""
