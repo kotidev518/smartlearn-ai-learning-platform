@@ -11,7 +11,11 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 import threading
 import time
+<<<<<<< HEAD
 from ..core.logging import get_logger
+=======
+from app.core.logger import get_logger
+>>>>>>> 7eeaba13be676b85039c9769cd6fde229373c5bd
 
 logger = get_logger(__name__)
 
@@ -45,11 +49,19 @@ class EmbeddingService:
                 # Check again in case another thread loaded it while we were waiting for the lock
                 if self._model is None:
                     from sentence_transformers import SentenceTransformer
+<<<<<<< HEAD
                     logger.info(f"--- LAZY LOADING SBERT MODEL: {self.MODEL_NAME} ---")
                     start_time = time.time()
                     self._model = SentenceTransformer(f'sentence-transformers/{self.MODEL_NAME}')
                     duration = time.time() - start_time
                     logger.info(f"--- SBERT MODEL LOADED SUCCESSFULLY (Time: {duration:.2f}s) ---")
+=======
+                    logger.info("LAZY LOADING SBERT MODEL: %s", self.MODEL_NAME)
+                    start_time = time.time()
+                    self._model = SentenceTransformer(f'sentence-transformers/{self.MODEL_NAME}')
+                    duration = time.time() - start_time
+                    logger.info("SBERT MODEL LOADED SUCCESSFULLY (Time: %.2fs)", duration)
+>>>>>>> 7eeaba13be676b85039c9769cd6fde229373c5bd
         return self._model
 
     async def generate_embedding(self, text: str) -> Optional[bytes]:
@@ -88,7 +100,11 @@ class EmbeddingService:
             return binary_data
             
         except Exception as e:
+<<<<<<< HEAD
             logger.error(f"Error generating embedding: {e}", exc_info=True)
+=======
+            logger.error("Error generating embedding: %s", e)
+>>>>>>> 7eeaba13be676b85039c9769cd6fde229373c5bd
             return None
     
     async def generate_embeddings_batch(self, texts: List[str]) -> List[Optional[bytes]]:
@@ -128,7 +144,11 @@ class EmbeddingService:
             return results
             
         except Exception as e:
+<<<<<<< HEAD
             logger.error(f"Error in batch embedding: {e}", exc_info=True)
+=======
+            logger.error("Error in batch embedding: %s", e)
+>>>>>>> 7eeaba13be676b85039c9769cd6fde229373c5bd
             return [None] * len(texts)
 
     def _generate_embeddings_batch_sync(self, texts: List[str]) -> np.ndarray:
@@ -247,7 +267,11 @@ class EmbeddingService:
             
             return float(similarity)
         except Exception as e:
+<<<<<<< HEAD
             logger.error(f"Error computing similarity: {e}", exc_info=True)
+=======
+            logger.error("Error computing similarity: %s", e)
+>>>>>>> 7eeaba13be676b85039c9769cd6fde229373c5bd
             return 0.0
     
     async def find_most_similar(
@@ -282,7 +306,11 @@ class EmbeddingService:
                     sim = cosine_similarity(query_vec, emb_vec)[0][0]
                     similarities.append((video_id, float(sim)))
                 except Exception as e:
+<<<<<<< HEAD
                     logger.error(f"Error processing embedding for {video_id}: {e}", exc_info=True)
+=======
+                    logger.error("Error processing embedding for %s: %s", video_id, e)
+>>>>>>> 7eeaba13be676b85039c9769cd6fde229373c5bd
                     continue
             
             # Sort by similarity (descending) and return top-K
@@ -290,7 +318,11 @@ class EmbeddingService:
             return similarities[:top_k]
             
         except Exception as e:
+<<<<<<< HEAD
             logger.error(f"Error finding similar embeddings: {e}", exc_info=True)
+=======
+            logger.error("Error finding similar embeddings: %s", e)
+>>>>>>> 7eeaba13be676b85039c9769cd6fde229373c5bd
             return []
     
     def _clean_text(self, text: str) -> str:

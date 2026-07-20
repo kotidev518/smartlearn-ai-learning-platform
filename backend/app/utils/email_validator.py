@@ -2,6 +2,7 @@ import dns.resolver
 import re
 from fastapi import HTTPException
 
+<<<<<<< HEAD
 # Common public providers that are globally trusted
 PUBLIC_PROVIDER_ALLOWLIST = {
     "gmail.com",
@@ -16,6 +17,8 @@ PUBLIC_PROVIDER_ALLOWLIST = {
     "aol.com",
 }
 
+=======
+>>>>>>> 7eeaba13be676b85039c9769cd6fde229373c5bd
 # Known disposable email providers to block
 DISPOSABLE_DOMAINS = {
     "mailinator.com",
@@ -26,6 +29,7 @@ DISPOSABLE_DOMAINS = {
     "temp-mail.org",
 }
 
+<<<<<<< HEAD
 # Trusted Top-Level Domains (Academic/Institutional/Government)
 TRUSTED_TLDS = {
     "edu", "gov", "ac.in", "ac.uk", "org", "edu.in", "mil", "int"
@@ -43,12 +47,22 @@ def validate_email_domain(email: str) -> bool:
     2. Educational, Governmental, and Trusted TLDs are ALLOWED.
     3. Explicitly whitelisted organizations are ALLOWED.
     4. Everything else is REJECTED to ensure high quality user data.
+=======
+def validate_email_domain(email: str) -> bool:
+    """
+    VALIDATION POLICY:
+    1. Check for valid email format.
+    2. Reject known disposable email domains to ensure user data quality.
+    3. Try resolving MX records to verify domain capability (optional).
+    4. Allow anything else to support custom/company domains.
+>>>>>>> 7eeaba13be676b85039c9769cd6fde229373c5bd
     """
     if not re.match(r"[^@]+@[^@]+\.[^@]+", email):
         raise HTTPException(status_code=400, detail="enter a valid domain")
 
     domain = email.split('@')[-1].lower()
 
+<<<<<<< HEAD
     # 1. Trusted Public Providers
     if domain in PUBLIC_PROVIDER_ALLOWLIST:
         return True
@@ -74,3 +88,18 @@ def validate_email_domain(email: str) -> bool:
 
     # 5. NEW STRICT RULE: Reject any other custom domain (like ex3.com)
     raise HTTPException(status_code=400, detail="enter a valid domain")
+=======
+    if domain in DISPOSABLE_DOMAINS:
+        raise HTTPException(status_code=400, detail="Disposable email domains are not allowed")
+
+    # Try optional MX record resolution to check if domain exists and can receive emails
+    try:
+        records = dns.resolver.resolve(domain, 'MX')
+        if not records:
+            pass
+    except Exception:
+        # Don't strictly block if DNS fails or is misconfigured
+        pass
+
+    return True
+>>>>>>> 7eeaba13be676b85039c9769cd6fde229373c5bd

@@ -11,7 +11,11 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { GraduationCap, Eye, EyeOff, CheckCircle2, XCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
+<<<<<<< HEAD
 import { signInWithPopup, GoogleAuthProvider, browserLocalPersistence, browserSessionPersistence, setPersistence, sendPasswordResetEmail } from 'firebase/auth';
+=======
+import { signInWithRedirect, GoogleAuthProvider, browserLocalPersistence, browserSessionPersistence, setPersistence, sendPasswordResetEmail } from 'firebase/auth';
+>>>>>>> 7eeaba13be676b85039c9769cd6fde229373c5bd
 import { auth } from '@/firebase';
 import { authService } from '@/services/authService';
 
@@ -58,6 +62,7 @@ const AuthPage = () => {
     provider.setCustomParameters({ prompt: 'select_account' });
 
     try {
+<<<<<<< HEAD
       // Set persistence based on remember me (for Google, we'll use local as default)
       await setPersistence(auth, browserLocalPersistence);
 
@@ -81,6 +86,17 @@ const AuthPage = () => {
       }
       toast.error(errorMessage);
     } finally {
+=======
+      // Set persistence before redirecting
+      await setPersistence(auth, browserLocalPersistence);
+
+      // Use redirect instead of popup to avoid COOP policy issues
+      await signInWithRedirect(auth, provider);
+      // The page will redirect to Google — the result is handled in AuthContext
+    } catch (error) {
+      console.error("Google Sign-In Error:", error);
+      toast.error("Google sign-in failed. Please try again.");
+>>>>>>> 7eeaba13be676b85039c9769cd6fde229373c5bd
       setLoading(false);
     }
   };

@@ -1,5 +1,9 @@
 from pathlib import Path
 from typing import List, Optional
+<<<<<<< HEAD
+=======
+from pydantic import field_validator
+>>>>>>> 7eeaba13be676b85039c9769cd6fde229373c5bd
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -27,14 +31,33 @@ class Settings(BaseSettings):
     # Redis
     REDIS_URL: str = "redis://127.0.0.1:6379"
     
+<<<<<<< HEAD
     # Logging
     LOG_LEVEL: str = "INFO"
     LOG_FORMAT: str = "text"  # "text" or "json"
 
+=======
+>>>>>>> 7eeaba13be676b85039c9769cd6fde229373c5bd
     # CORS
     # Can be a JSON list or a comma-separated string
     CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:3001"]
 
+<<<<<<< HEAD
+=======
+    @field_validator("CORS_ORIGINS", mode="before")
+    def parse_cors_origins(cls, v):
+        if isinstance(v, str):
+            if v.startswith("[") and v.endswith("]"):
+                try:
+                    import json
+                    return json.loads(v)
+                except json.JSONDecodeError:
+                    # Fallback to stripping brackets and splitting
+                    v = v[1:-1]
+            return [x.strip() for x in v.split(",") if x.strip()]
+        return v
+
+>>>>>>> 7eeaba13be676b85039c9769cd6fde229373c5bd
     model_config = SettingsConfigDict(
         env_file=str(Path(__file__).resolve().parent.parent.parent / ".env"),
         env_file_encoding="utf-8",

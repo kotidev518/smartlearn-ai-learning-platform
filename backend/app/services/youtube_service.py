@@ -6,7 +6,11 @@ import aiohttp
 from typing import Optional, List, Dict, Any
 from app.database import db
 from app.core.config import settings
+<<<<<<< HEAD
 from app.core.logging import get_logger
+=======
+from app.core.logger import get_logger
+>>>>>>> 7eeaba13be676b85039c9769cd6fde229373c5bd
 
 logger = get_logger(__name__)
 
@@ -44,7 +48,11 @@ class YouTubeService:
             async with session.get(f"{self.BASE_URL}/playlists", params=params) as response:
                 if response.status != 200:
                     error_text = await response.text()
+<<<<<<< HEAD
                     logger.error(f"YouTube API error: {error_text}")
+=======
+                    logger.error("YouTube API error: %s", error_text)
+>>>>>>> 7eeaba13be676b85039c9769cd6fde229373c5bd
                     return None
                     
                 data = await response.json()
@@ -91,7 +99,11 @@ class YouTubeService:
                 async with session.get(f"{self.BASE_URL}/playlistItems", params=params) as response:
                     if response.status != 200:
                         error_text = await response.text()
+<<<<<<< HEAD
                         logger.error(f"YouTube API error fetching videos: {error_text}")
+=======
+                        logger.error("YouTube API error fetching videos: %s", error_text)
+>>>>>>> 7eeaba13be676b85039c9769cd6fde229373c5bd
                         break
                     
                     data = await response.json()

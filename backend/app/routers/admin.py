@@ -13,7 +13,11 @@ from app.services.transcript_service import transcript_service
 from app.services.processing_queue_service import processing_worker
 from app.services.video_service import VideoService
 from app.services.course_service import CourseService
+<<<<<<< HEAD
 # from app.queue import enqueue_quiz_job  # Removed in favor of direct call
+=======
+from app.queue import enqueue_quiz_job
+>>>>>>> 7eeaba13be676b85039c9769cd6fde229373c5bd
 from app.core.config import settings
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -106,6 +110,7 @@ async def regenerate_quizzes(
     quiz_ids = [f"quiz-{vid}" for vid in video_ids]
     await course_service.db.quizzes.delete_many({"id": {"$in": quiz_ids}})
     
+<<<<<<< HEAD
     # Add to processing queue instead of synchronous generation
     await processing_worker.add_batch_to_queue(video_ids, priority=1)
     processing_worker.ensure_running()  # Trigger worker on-demand
@@ -113,5 +118,14 @@ async def regenerate_quizzes(
     return {
         "success": True, 
         "message": f"Successfully triggered quiz regeneration for {len(video_ids)} videos in background.",
+=======
+    # Enqueue new quiz generation jobs
+    for vid in video_ids:
+        await enqueue_quiz_job(vid)
+    
+    return {
+        "success": True, 
+        "message": f"Enqueued {len(video_ids)} quiz generation jobs.",
+>>>>>>> 7eeaba13be676b85039c9769cd6fde229373c5bd
         "video_count": len(video_ids)
     }

@@ -6,7 +6,11 @@ from fastapi import HTTPException
 
 from app.services.youtube_service import youtube_service
 from app.schemas import CourseDB, VideoDB
+<<<<<<< HEAD
 from app.services.processing_queue_service import processing_worker
+=======
+from app.queue import enqueue_video_job
+>>>>>>> 7eeaba13be676b85039c9769cd6fde229373c5bd
 
 class PlaylistService:
     def __init__(self, db: AsyncIOMotorDatabase):
@@ -100,12 +104,19 @@ class PlaylistService:
             if video_docs:
                 await self.db.videos.insert_many([v.model_dump() for v in video_docs])
             
+<<<<<<< HEAD
             # Queue for processing via our background worker
             video_ids_to_queue = [v.id for v in video_docs]
             await processing_worker.add_batch_to_queue(video_ids_to_queue, priority=1)
             processing_worker.ensure_running()  # Trigger worker on-demand
             
             logger_info = f"✓ Added {len(video_ids_to_queue)} videos to processing queue"
+=======
+            # Queue for processing via ARQ
+            video_ids_to_queue = [v.id for v in video_docs]
+            for vid in video_ids_to_queue:
+                await enqueue_video_job(vid)
+>>>>>>> 7eeaba13be676b85039c9769cd6fde229373c5bd
             
             return True, "Imported successfully.", {
                 "course_id": playlist_id,

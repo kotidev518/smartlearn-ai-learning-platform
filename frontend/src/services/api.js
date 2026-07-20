@@ -1,8 +1,18 @@
 import axios from 'axios';
 
 const getBaseURL = () => {
+<<<<<<< HEAD
   if (process.env.REACT_APP_API_URL) return process.env.REACT_APP_API_URL;
   if (process.env.REACT_APP_BACKEND_URL) return `${process.env.REACT_APP_BACKEND_URL}/api`;
+=======
+  if (process.env.REACT_APP_API_URL) {
+    return process.env.REACT_APP_API_URL.replace(/\/+$/, '');
+  }
+  if (process.env.REACT_APP_BACKEND_URL) {
+    const baseUrl = process.env.REACT_APP_BACKEND_URL.replace(/\/+$/, '');
+    return `${baseUrl}/api`;
+  }
+>>>>>>> 7eeaba13be676b85039c9769cd6fde229373c5bd
   return 'http://localhost:8000/api';
 };
 

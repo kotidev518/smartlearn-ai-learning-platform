@@ -18,6 +18,7 @@ REDIS_URL=redis://127.0.0.1:6379
 
 ## 3. How it Works
 1. **Admin Import**: When an admin imports a YouTube playlist, the metadata is saved immediately.
+<<<<<<< HEAD
 2. **Background Job**: The system automatically adds video tasks to a MongoDB-backed processing queue.
 3. **Automated Worker**: The backend server starts a background worker task on startup that fetches transcripts, generates embeddings, and creates AI quizzes.
 
@@ -25,3 +26,19 @@ REDIS_URL=redis://127.0.0.1:6379
 - **No Quizzes Generated**: Check your backend server logs. You should see `🧠 Calling Gemini AI...` or any error messages there.
 - **Gemini API Limits**: The worker uses exponential backoff to retry if rate-limited by Google.
 - **Redis Down**: The server will log a warning if it cannot connect to the `REDIS_URL`, though basic processing may still work via the internal queue.
+=======
+2. **Background Job**: The system enqueues a background job to fetch transcripts and generate quizzes.
+3. **ARQ Worker**: The worker (`WorkerSettings`) processes the queue, calls Gemini AI, and stores the generated MCQs in MongoDB.
+
+## 4. Starting the System
+To enable quiz generation, you **must** run the ARQ worker in your backend environment:
+```bash
+cd backend
+python -m arq app.worker.WorkerSettings
+```
+
+## 🛠 Troubleshooting
+- **No Quizzes Generated**: Check if the ARQ worker terminal shows any errors.
+- **Gemini API Limits**: If you are on the free tier, the worker uses exponential backoff to retry if rate-limited.
+- **Redis Down**: The worker will fail to start if it cannot connect to the `REDIS_URL`.
+>>>>>>> 7eeaba13be676b85039c9769cd6fde229373c5bd

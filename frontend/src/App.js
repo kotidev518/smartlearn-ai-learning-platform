@@ -1,8 +1,7 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { Toaster } from '@/components/ui/sonner';
-import axios from 'axios';
 import '@/App.css';
 
 // Pages
@@ -16,8 +15,6 @@ import AnalyticsPage from '@/pages/AnalyticsPage';
 import AdminDashboardPage from '@/pages/AdminDashboardPage';
 import AdminLoginPage from '@/pages/AdminLoginPage';
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
 
 // Protected Route Component (for students)
 const ProtectedRoute = ({ children }) => {
@@ -46,6 +43,8 @@ const ProtectedRoute = ({ children }) => {
 // Admin Route Component (requires admin role)
 const AdminRoute = ({ children }) => {
   const { isAuthenticated, user, loading } = useAuth();
+<<<<<<< HEAD
+=======
 
   if (loading) {
     return (
@@ -69,6 +68,7 @@ const AdminRoute = ({ children }) => {
 // Public Route Component (redirects to respective dashboards if authenticated)
 const PublicRoute = ({ children }) => {
   const { isAuthenticated, user, loading } = useAuth();
+>>>>>>> 7eeaba13be676b85039c9769cd6fde229373c5bd
 
   if (loading) {
     return (
@@ -78,6 +78,32 @@ const PublicRoute = ({ children }) => {
     );
   }
 
+<<<<<<< HEAD
+  if (!isAuthenticated) {
+    return <Navigate to="/admin-login" replace />;
+  }
+
+  if (user?.role !== 'admin') {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return children;
+};
+
+// Public Route Component (redirects to respective dashboards if authenticated)
+const PublicRoute = ({ children }) => {
+  const { isAuthenticated, user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary" />
+      </div>
+    );
+  }
+
+=======
+>>>>>>> 7eeaba13be676b85039c9769cd6fde229373c5bd
   if (isAuthenticated) {
     return user?.role === 'admin' 
       ? <Navigate to="/admin" replace /> 
@@ -87,28 +113,10 @@ const PublicRoute = ({ children }) => {
   return children;
 };
 
-// Initialize Data Component
-const InitializeData = () => {
-  useEffect(() => {
-    const initData = async () => {
-      try {
-        // Check if data needs to be initialized
-        const response = await axios.post(`${API}/init-data`);
-        console.log('Data initialization:', response.data);
-      } catch (error) {
-        console.error('Failed to initialize data:', error);
-      }
-    };
-    initData();
-  }, []);
-
-  return null;
-};
 
 function AppContent() {
   return (
     <div className="App">
-      <InitializeData />
       <Routes>
         {/* Public Routes */}
         <Route

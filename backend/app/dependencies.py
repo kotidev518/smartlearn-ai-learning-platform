@@ -3,6 +3,10 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from firebase_admin import auth as firebase_auth
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
+<<<<<<< HEAD
+=======
+from .core.logger import get_logger
+>>>>>>> 7eeaba13be676b85039c9769cd6fde229373c5bd
 from .db.session import get_db
 from .services.course_service import CourseService
 from .services.playlist_service import PlaylistService
@@ -13,7 +17,10 @@ from .services.analytics_service import AnalyticsService
 from .services.recommendation_service import RecommendationService
 from .services.auth_service import AuthService
 from .services.vector_service import VectorService
+<<<<<<< HEAD
 from .core.logging import get_logger
+=======
+>>>>>>> 7eeaba13be676b85039c9769cd6fde229373c5bd
 
 logger = get_logger(__name__)
 
@@ -43,12 +50,30 @@ async def get_current_user(
                 )
         
         if not user:
+<<<<<<< HEAD
             raise HTTPException(status_code=401, detail="User not found. Please register first.")
         
         return user
     except Exception as e:
         logger.error(f"Auth error: {e}", exc_info=True)
         raise HTTPException(status_code=401, detail="Authentication failed")
+=======
+            raise HTTPException(status_code=404, detail="User not found. Please register first.")
+        
+        return user
+    except firebase_auth.ExpiredIdTokenError:
+        logger.warning("Auth error: Token has expired")
+        raise HTTPException(status_code=401, detail="Token has expired")
+    except firebase_auth.InvalidIdTokenError:
+        logger.warning("Auth error: Invalid token")
+        raise HTTPException(status_code=401, detail="Invalid token")
+    except Exception as e:
+        logger.error("Auth error: %s", str(e), exc_info=True)
+        # If it's a 404 from before, re-raise it
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=401, detail=f"Authentication failed: {str(e)}")
+>>>>>>> 7eeaba13be676b85039c9769cd6fde229373c5bd
 
 async def get_admin_user(user = Depends(get_current_user)):
     """Verify that the current user is an admin"""

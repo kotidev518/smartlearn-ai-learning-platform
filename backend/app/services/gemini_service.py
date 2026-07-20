@@ -8,7 +8,11 @@ import json
 from typing import List, Optional
 from app.database import db
 from app.core.config import settings
+<<<<<<< HEAD
 from app.core.logging import get_logger
+=======
+from app.core.logger import get_logger
+>>>>>>> 7eeaba13be676b85039c9769cd6fde229373c5bd
 
 logger = get_logger(__name__)
 
@@ -57,7 +61,11 @@ Topics should be:
             if isinstance(topics, list) and len(topics) > 0:
                 return topics[:5]  # Limit to 5 topics
         except Exception as e:
+<<<<<<< HEAD
             logger.error(f"Gemini topics error: {e}", exc_info=True)
+=======
+            logger.error("Gemini topics error: %s", e)
+>>>>>>> 7eeaba13be676b85039c9769cd6fde229373c5bd
         
         return self._fallback_topics(video_title)
     
@@ -93,7 +101,11 @@ Instructions:
             if result and len(result) > 10:
                 return result.strip()[:500]  # Limit length
         except Exception as e:
+<<<<<<< HEAD
             logger.error(f"Gemini summary error: {e}", exc_info=True)
+=======
+            logger.error("Gemini summary error: %s", e)
+>>>>>>> 7eeaba13be676b85039c9769cd6fde229373c5bd
         
         return self._clean_description(video_description)
     
@@ -106,14 +118,22 @@ Instructions:
             num_questions: Number of MCQ questions to generate (default: 4)
         """
         if not self.api_key:
+<<<<<<< HEAD
             logger.warning(f"Quiz fallback: No Gemini API key configured")
+=======
+            logger.warning("Quiz fallback: No Gemini API key configured")
+>>>>>>> 7eeaba13be676b85039c9769cd6fde229373c5bd
             return self._fallback_quiz(video_title, topics, difficulty)[:num_questions]
         
         topic_str = ", ".join(topics) if topics else "General programming"
         
         # Use full transcript for richer quiz content
         content_text = video_transcript if video_transcript else f"Educational content about {video_title}"
+<<<<<<< HEAD
         logger.info(f"Generating quiz for '{video_title}' | Transcript length: {len(video_transcript)} chars | Questions: {num_questions}")
+=======
+        logger.info("Generating quiz for '%s' | Transcript length: %d chars | Questions: %d", video_title, len(video_transcript), num_questions)
+>>>>>>> 7eeaba13be676b85039c9769cd6fde229373c5bd
         
         prompt = f"""Generate exactly {num_questions} multiple choice quiz questions for an educational video.
 
@@ -168,7 +188,11 @@ Requirements:
                             isinstance(q["options"], list) and len(q["options"]) == 4):
                             valid_questions.append(q)
                     
+<<<<<<< HEAD
                     logger.info(f"Quiz for '{video_title}': {len(valid_questions)} valid questions from {len(questions)} total")
+=======
+                    logger.info("Quiz for '%s': %d valid questions from %d total", video_title, len(valid_questions), len(questions))
+>>>>>>> 7eeaba13be676b85039c9769cd6fde229373c5bd
                     
                     if len(valid_questions) >= num_questions - 1:
                         # Pad with fallback questions if we have fewer than requested
@@ -178,6 +202,7 @@ Requirements:
                                 valid_questions.append(fallback.pop(0))
                         return valid_questions[:num_questions]
                 else:
+<<<<<<< HEAD
                     logger.error(f"Quiz parse error: Expected list, got {type(questions)}")
             else:
                 logger.error(f"Quiz error: Gemini returned empty result for '{video_title}'")
@@ -186,6 +211,16 @@ Requirements:
             logger.debug(f"Raw response: {result[:200] if result else 'None'}")
         except Exception as e:
             logger.error(f"Gemini quiz generation error for '{video_title}': {e}", exc_info=True)
+=======
+                    logger.error("Quiz parse error: Expected list, got %s", type(questions))
+            else:
+                logger.error("Quiz error: Gemini returned empty result for '%s'", video_title)
+        except json.JSONDecodeError as e:
+            logger.error("Quiz JSON parse error for '%s': %s", video_title, e)
+            logger.debug("Raw response: %s", result[:200] if result else 'None')
+        except Exception as e:
+            logger.error("Gemini quiz generation error for '%s': %s", video_title, e)
+>>>>>>> 7eeaba13be676b85039c9769cd6fde229373c5bd
         
         # Return empty list on failure instead of static fallback
         return []
@@ -227,7 +262,11 @@ Answer:
             if result:
                 return result.strip()
         except Exception as e:
+<<<<<<< HEAD
             logger.error(f"Gemini chatbot error: {e}", exc_info=True)
+=======
+            logger.error("Gemini chatbot error: %s", e)
+>>>>>>> 7eeaba13be676b85039c9769cd6fde229373c5bd
         
         return "I'm sorry, I'm having trouble processing your question right now. Please try again later."
 
@@ -264,12 +303,20 @@ Answer:
                                 return parts[0].get("text", "")
                     elif response.status == 429 and attempt < max_retries:
                         wait_time = 2 ** (attempt + 1)  # 2s, 4s, 8s
+<<<<<<< HEAD
                         logger.warning(f"Gemini rate limited, retrying in {wait_time}s (attempt {attempt + 1}/{max_retries})")
+=======
+                        logger.warning("Gemini rate limited, retrying in %ds (attempt %d/%d)", wait_time, attempt + 1, max_retries)
+>>>>>>> 7eeaba13be676b85039c9769cd6fde229373c5bd
                         await asyncio.sleep(wait_time)
                         continue
                     else:
                         error = await response.text()
+<<<<<<< HEAD
                         logger.error(f"Gemini API error (status {response.status}): {error[:200]}")
+=======
+                        logger.error("Gemini API error (status %d): %s", response.status, error[:200])
+>>>>>>> 7eeaba13be676b85039c9769cd6fde229373c5bd
             break
         
         return None

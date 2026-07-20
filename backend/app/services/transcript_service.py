@@ -12,7 +12,11 @@ from youtube_transcript_api._errors import (
     NoTranscriptFound,
     VideoUnavailable,
 )
+<<<<<<< HEAD
 from ..core.logging import get_logger
+=======
+from app.core.logger import get_logger
+>>>>>>> 7eeaba13be676b85039c9769cd6fde229373c5bd
 
 logger = get_logger(__name__)
 
@@ -36,10 +40,17 @@ class TranscriptService:
         except NoTranscriptFound:
             pass
         except (TranscriptsDisabled, VideoUnavailable) as e:
+<<<<<<< HEAD
             logger.warning(f"Transcript unavailable for {video_id}: {e}")
             return None
         except Exception as e:
             logger.error(f"Transcript error (en) for {video_id}: {e}", exc_info=True)
+=======
+            logger.warning("Transcript unavailable for %s: %s", video_id, e)
+            return None
+        except Exception as e:
+            logger.error("Transcript error (en) for %s: %s", video_id, e)
+>>>>>>> 7eeaba13be676b85039c9769cd6fde229373c5bd
 
         # Fallback: try listing all available transcripts and pick the first one
         try:
@@ -58,9 +69,15 @@ class TranscriptService:
                     except Exception:
                         continue
         except (TranscriptsDisabled, VideoUnavailable) as e:
+<<<<<<< HEAD
             logger.warning(f"Transcript unavailable for {video_id}: {e}")
         except Exception as e:
             logger.error(f"Unexpected transcript error for {video_id}: {e}", exc_info=True)
+=======
+            logger.warning("Transcript unavailable for %s: %s", video_id, e)
+        except Exception as e:
+            logger.error("Unexpected transcript error for %s: %s", video_id, e)
+>>>>>>> 7eeaba13be676b85039c9769cd6fde229373c5bd
 
         return None
 
@@ -130,7 +147,11 @@ class TranscriptService:
                 
                 if result:
                     if attempt > 0:
+<<<<<<< HEAD
                         logger.info(f"✓ Transcript fetched for {video_id} on retry {attempt}")
+=======
+                        logger.info("Transcript fetched for %s on retry %d", video_id, attempt)
+>>>>>>> 7eeaba13be676b85039c9769cd6fde229373c5bd
                     return result
                 
                 # No transcript available (not an error, just unavailable)
@@ -143,12 +164,21 @@ class TranscriptService:
                     jitter = backoff * random.uniform(-0.2, 0.2)  # ±20% jitter
                     wait_time = backoff + jitter
                     
+<<<<<<< HEAD
                     logger.warning(f"⚠️ Transcript fetch failed for {video_id} (attempt {attempt + 1}/{max_retries}): {e}")
                     logger.info(f"   Retrying in {wait_time:.1f}s...")
                     
                     await asyncio.sleep(wait_time)
                 else:
                     logger.error(f"❌ Transcript fetch failed for {video_id} after {max_retries} attempts: {e}", exc_info=True)
+=======
+                    logger.warning("Transcript fetch failed for %s (attempt %d/%d): %s", video_id, attempt + 1, max_retries, e)
+                    logger.info("   Retrying in %.1fs...", wait_time)
+                    
+                    await asyncio.sleep(wait_time)
+                else:
+                    logger.error("Transcript fetch failed for %s after %d attempts: %s", video_id, max_retries, e)
+>>>>>>> 7eeaba13be676b85039c9769cd6fde229373c5bd
                     return None
         
         return None

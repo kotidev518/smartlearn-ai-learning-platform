@@ -3,7 +3,12 @@ import {
   createUserWithEmailAndPassword, 
   signInWithEmailAndPassword, 
   signOut, 
+<<<<<<< HEAD
   onAuthStateChanged 
+=======
+  onAuthStateChanged,
+  getRedirectResult
+>>>>>>> 7eeaba13be676b85039c9769cd6fde229373c5bd
 } from 'firebase/auth';
 import { auth } from '@/firebase';
 import { setAuthToken } from '@/services/api';
@@ -27,6 +32,7 @@ export const AuthProvider = ({ children }) => {
 
   // Listen to Firebase auth state changes
   useEffect(() => {
+<<<<<<< HEAD
     const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
       setFirebaseUser(fbUser);
       
@@ -59,6 +65,73 @@ export const AuthProvider = ({ children }) => {
     });
 
     return () => unsubscribe();
+=======
+    let isMounted = true;
+
+    const initAuth = async () => {
+      try {
+        // 1. First process any pending redirect results
+        const result = await getRedirectResult(auth);
+        if (result?.user) {
+          console.log("Redirect result found", result.user.email);
+          const idToken = await result.user.getIdToken();
+          setToken(idToken);
+          setAuthToken(idToken);
+          // Ensure the user exists in our SQL backend
+          await authService.googleLogin(result.user.displayName || 'User', result.user.email);
+        }
+      } catch (err) {
+        console.error('Redirect sign-in error:', err);
+      }
+
+      // 2. Then set up the auth state listener
+      const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
+        if (!isMounted) return;
+        setFirebaseUser(fbUser);
+        
+        if (fbUser) {
+          try {
+            const idToken = await fbUser.getIdToken();
+            setToken(idToken);
+            setAuthToken(idToken);
+            
+            await checkUser();
+          } catch (error) {
+             if (error.response && error.response.status === 404) {
+               // User is in Firebase but not in our SQL backend yet.
+               console.log("User not in DB, sycing from Firebase...");
+               try {
+                 await authService.googleLogin(fbUser.displayName || 'User', fbUser.email);
+                 await checkUser();
+               } catch (syncError) {
+                 console.error("Failed to sync user:", syncError);
+                 setUser(null);
+               }
+             } else {
+               console.error('Failed to fetch user profile:', error);
+               setUser(null);
+             }
+          }
+        } else {
+          setToken(null);
+          setAuthToken(null);
+          setUser(null);
+        }
+        
+        // Only set loading false after everything is processed
+        setLoading(false);
+      });
+
+      return unsubscribe;
+    };
+
+    const unsubscribePromise = initAuth();
+
+    return () => {
+      isMounted = false;
+      unsubscribePromise.then(unsub => unsub && unsub());
+    };
+>>>>>>> 7eeaba13be676b85039c9769cd6fde229373c5bd
   }, []);
 
   const checkUser = async () => {
