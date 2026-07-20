@@ -13,6 +13,9 @@ from .services.analytics_service import AnalyticsService
 from .services.recommendation_service import RecommendationService
 from .services.auth_service import AuthService
 from .services.vector_service import VectorService
+from .core.logging import get_logger
+
+logger = get_logger(__name__)
 
 security = HTTPBearer()
 
@@ -44,7 +47,7 @@ async def get_current_user(
         
         return user
     except Exception as e:
-        print(f"Auth error: {e}")
+        logger.error(f"Auth error: {e}", exc_info=True)
         raise HTTPException(status_code=401, detail="Authentication failed")
 
 async def get_admin_user(user = Depends(get_current_user)):

@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  redis_server:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+
+  api:
+    build: .
+    ports:
+      - "7860:7860"
+    environment:
+      - REDIS_URL=redis://redis_server:6379
+      - PORT=7860
+    depends_on:
+      - redis_server
+
+  worker:
+    build: .
+    command: python -m arq app.worker.WorkerSettings
+    environment:
+      - REDIS_URL=redis://redis_server:6379
+    depends_on:
+      - redis_server

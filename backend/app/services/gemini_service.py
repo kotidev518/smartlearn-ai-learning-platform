@@ -8,6 +8,9 @@ import json
 from typing import List, Optional
 from app.database import db
 from app.core.config import settings
+from app.core.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class GeminiService:
@@ -54,7 +57,7 @@ Topics should be:
             if isinstance(topics, list) and len(topics) > 0:
                 return topics[:5]  # Limit to 5 topics
         except Exception as e:
-            print(f"Gemini topics error: {e}")
+            logger.error(f"Gemini topics error: {e}", exc_info=True)
         
         return self._fallback_topics(video_title)
     
@@ -90,7 +93,7 @@ Instructions:
             if result and len(result) > 10:
                 return result.strip()[:500]  # Limit length
         except Exception as e:
-            print(f"Gemini summary error: {e}")
+            logger.error(f"Gemini summary error: {e}", exc_info=True)
         
         return self._clean_description(video_description)
     
@@ -103,14 +106,14 @@ Instructions:
             num_questions: Number of MCQ questions to generate (default: 4)
         """
         if not self.api_key:
-            print(f"Quiz fallback: No Gemini API key configured")
+            logger.warning(f"Quiz fallback: No Gemini API key configured")
             return self._fallback_quiz(video_title, topics, difficulty)[:num_questions]
         
         topic_str = ", ".join(topics) if topics else "General programming"
         
         # Use full transcript for richer quiz content
         content_text = video_transcript if video_transcript else f"Educational content about {video_title}"
-        print(f"Generating quiz for '{video_title}' | Transcript length: {len(video_transcript)} chars | Questions: {num_questions}")
+        logger.info(f"Generating quiz for '{video_title}' | Transcript length: {len(video_transcript)} chars | Questions: {num_questions}")
         
         prompt = f"""Generate exactly {num_questions} multiple choice quiz questions for an educational video.
 
@@ -165,7 +168,7 @@ Requirements:
                             isinstance(q["options"], list) and len(q["options"]) == 4):
                             valid_questions.append(q)
                     
-                    print(f"Quiz for '{video_title}': {len(valid_questions)} valid questions from {len(questions)} total")
+                    logger.info(f"Quiz for '{video_title}': {len(valid_questions)} valid questions from {len(questions)} total")
                     
                     if len(valid_questions) >= num_questions - 1:
                         # Pad with fallback questions if we have fewer than requested
@@ -175,14 +178,14 @@ Requirements:
                                 valid_questions.append(fallback.pop(0))
                         return valid_questions[:num_questions]
                 else:
-                    print(f"Quiz parse error: Expected list, got {type(questions)}")
+                    logger.error(f"Quiz parse error: Expected list, got {type(questions)}")
             else:
-                print(f"Quiz error: Gemini returned empty result for '{video_title}'")
+                logger.error(f"Quiz error: Gemini returned empty result for '{video_title}'")
         except json.JSONDecodeError as e:
-            print(f"Quiz JSON parse error for '{video_title}': {e}")
-            print(f"Raw response: {result[:200] if result else 'None'}")
+            logger.error(f"Quiz JSON parse error for '{video_title}': {e}", exc_info=True)
+            logger.debug(f"Raw response: {result[:200] if result else 'None'}")
         except Exception as e:
-            print(f"Gemini quiz generation error for '{video_title}': {e}")
+            logger.error(f"Gemini quiz generation error for '{video_title}': {e}", exc_info=True)
         
         # Return empty list on failure instead of static fallback
         return []
@@ -224,7 +227,7 @@ Answer:
             if result:
                 return result.strip()
         except Exception as e:
-            print(f"Gemini chatbot error: {e}")
+            logger.error(f"Gemini chatbot error: {e}", exc_info=True)
         
         return "I'm sorry, I'm having trouble processing your question right now. Please try again later."
 
@@ -261,12 +264,12 @@ Answer:
                                 return parts[0].get("text", "")
                     elif response.status == 429 and attempt < max_retries:
                         wait_time = 2 ** (attempt + 1)  # 2s, 4s, 8s
-                        print(f"Gemini rate limited, retrying in {wait_time}s (attempt {attempt + 1}/{max_retries})")
+                        logger.warning(f"Gemini rate limited, retrying in {wait_time}s (attempt {attempt + 1}/{max_retries})")
                         await asyncio.sleep(wait_time)
                         continue
                     else:
                         error = await response.text()
-                        print(f"Gemini API error (status {response.status}): {error[:200]}")
+                        logger.error(f"Gemini API error (status {response.status}): {error[:200]}")
             break
         
         return None

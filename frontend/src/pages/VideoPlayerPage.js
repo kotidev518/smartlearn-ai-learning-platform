@@ -242,12 +242,12 @@ const VideoPlayerPage = () => {
 
   const fetchNextVideo = useCallback(async () => {
     try {
-      const response = await analyticsService.getNextRecommendation();
+      const response = await analyticsService.getNextRecommendation(video?.course_id);
       setNextVideo(response.video);
     } catch (error) {
       console.error('Failed to fetch next video:', error);
     }
-  }, []);
+  }, [video]);
 
   const updateProgress = useCallback(async (percentage) => {
     try {

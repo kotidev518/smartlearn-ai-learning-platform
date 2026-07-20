@@ -4,7 +4,10 @@ from .database import db, init_firebase, ensure_indexes
 from .services.gemini_service import gemini_service
 from .services.processing_queue_service import processing_worker
 from .config import settings
+from .core.logging import get_logger
 from datetime import datetime, timezone
+
+logger = get_logger(__name__)
 
 async def process_video_task(ctx, video_id: str):
     """
@@ -13,7 +16,7 @@ async def process_video_task(ctx, video_id: str):
     transcript is fetched at a time, avoiding YouTube rate-limits.
     Then enqueues the quiz generation task.
     """
-    print(f"📹 Processing video for embeddings: {video_id}")
+    logger.info(f"📹 Processing video for embeddings: {video_id}")
     try:
         # Check if there is an existing job in processing_queue to keep status in sync
         job = await db.processing_queue.find_one({"video_id": video_id})
@@ -23,31 +26,32 @@ async def process_video_task(ctx, video_id: str):
         
         # Use semaphore-gated method to ensure only 1 transcript is fetched at a time
         await processing_worker._process_with_semaphore(job)
-        print(f"✅ Video processing (embeddings) finished for {video_id}")
+        logger.info(f"✅ Video processing (embeddings) finished for {video_id}")
     except Exception as e:
-        print(f"❌ Error in process_video_task for {video_id}: {e}")
+        logger.error(f"❌ Error in process_video_task for {video_id}: {e}", exc_info=True)
         raise e
 
-async def generate_quiz_task(ctx, video_id: str):
+async def generate_quiz_logic(video_id: str):
     """
-    ARQ Background Task to generate a quiz for a video.
+    Core logic to generate a quiz for a video.
+    Extracted from generate_quiz_task to allow direct calls without ARQ.
     """
-    print(f"📦 Processing quiz for video: {video_id}")
+    logger.info(f"📦 Processing quiz for video: {video_id}")
     
     try:
         # 1. Fetch video from database
         video = await db.videos.find_one({"id": video_id})
         if not video:
-            print(f"❌ Video {video_id} not found in database")
-            return
+            logger.error(f"❌ Video {video_id} not found in database")
+            return False
             
         transcript = video.get("transcript", "")
         if not transcript:
-            print(f"⚠️ Video {video_id} has no transcript. Cannot generate quiz.")
-            return
+            logger.warning(f"⚠️ Video {video_id} has no transcript. Cannot generate quiz.")
+            return False
 
         # 2. Generate quiz via Gemini AI
-        print(f"  🧠 Calling Gemini AI for quiz generation...")
+        logger.info(f"  🧠 Calling Gemini AI for quiz generation...")
         questions = await gemini_service.generate_quiz(
             video_title=video["title"],
             video_transcript=transcript,
@@ -73,21 +77,28 @@ async def generate_quiz_task(ctx, video_id: str):
             upsert=True
         )
         
-        print(f"✅ Quiz generated and saved for {video_id} ({len(questions)} questions)")
+        logger.info(f"✅ Quiz generated and saved for {video_id} ({len(questions)} questions)")
+        return True
 
     except Exception as e:
-        print(f"❌ Error generating quiz for {video_id}: {e}")
+        logger.error(f"❌ Error generating quiz for {video_id}: {e}", exc_info=True)
         raise e
+
+async def generate_quiz_task(ctx, video_id: str):
+    """
+    ARQ Background Task wrapper for quiz generation.
+    """
+    await generate_quiz_logic(video_id)
 
 async def startup(ctx):
     """Worker startup logic"""
     init_firebase()
     await ensure_indexes()
-    print("🚀 ARQ Worker started. Ready for jobs (Embeddings + Quizzes).")
+    logger.info("🚀 ARQ Worker started. Ready for jobs (Embeddings + Quizzes).")
 
 async def shutdown(ctx):
     """Worker shutdown logic"""
-    print("⏹️ ARQ Worker shutting down.")
+    logger.info("⏹️ ARQ Worker shutting down.")
 
 class WorkerSettings:
     """ARQ Worker configuration"""

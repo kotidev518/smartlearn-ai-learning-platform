@@ -29,12 +29,11 @@ async def test_import_playlist_thumbnail_fallback():
             'vid1': {'duration': 100, 'tags': ['tag1']}
         })
         
-        mock_worker = MagicMock()
-        mock_worker.add_batch_to_queue = AsyncMock()
-        mock_worker.start_worker = AsyncMock()
+        # Mock enqueue_video_job
+        mock_enqueue = AsyncMock()
         
         mp.setattr('app.services.playlist_service.youtube_service', mock_yt)
-        mp.setattr('app.services.playlist_service.processing_worker', mock_worker)
+        mp.setattr('app.services.playlist_service.enqueue_video_job', mock_enqueue)
         
         service = PlaylistService(mock_db)
         success, message, data = await service.import_playlist("https://youtube.com/list=test", "Easy", "admin1")
@@ -45,3 +44,8 @@ async def test_import_playlist_thumbnail_fallback():
         inserted_doc = args[0]
         assert inserted_doc['thumbnail'] == 'https://working-thumb.jpg'
         assert inserted_doc['thumbnail'] != 'https://i9.ytimg.com/landscape_maxresdefault.jpg'
+        
+        # Verify enqueue_video_job was called
+        assert mock_enqueue.called
+        assert mock_enqueue.call_count == 1
+        mock_enqueue.assert_called_with('vid1')

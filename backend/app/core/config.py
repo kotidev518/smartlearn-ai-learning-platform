@@ -27,6 +27,10 @@ class Settings(BaseSettings):
     # Redis
     REDIS_URL: str = "redis://127.0.0.1:6379"
     
+    # Logging
+    LOG_LEVEL: str = "INFO"
+    LOG_FORMAT: str = "text"  # "text" or "json"
+
     # CORS
     # Can be a JSON list or a comma-separated string
     CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:3001"]

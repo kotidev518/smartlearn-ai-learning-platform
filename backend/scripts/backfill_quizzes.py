@@ -31,6 +31,9 @@ async def check_missing_quizzes():
             print(f"❌ Missing quiz: {v['id']} - {v['title']}")
             missing_count += 1
             ids_to_requeue.append(v["id"])
+        else:
+            print(f"✅ Has quiz: {v['id']}")
+            pass
             
     print(f"\nSummary: {missing_count} videos are missing quizzes.")
     

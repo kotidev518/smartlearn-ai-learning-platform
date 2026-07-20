@@ -45,8 +45,8 @@ async def test_full_worker_flow(mock_db, mock_gemini_service):
             mock_emb_service.generate_embeddings_batch = AsyncMock(return_value=[[0.1]*384, [0.2]*384])
             mock_emb_service.MODEL_NAME = "test-model"
             
-            # Mock enqueue_quiz_job to avoid Redis call
-            with patch('app.services.processing_queue_service.enqueue_quiz_job', new_callable=AsyncMock):
+            # Mock _trigger_quiz_generation to avoid Gemini/Redis call
+            with patch('app.services.processing_queue_service._trigger_quiz_generation', new_callable=AsyncMock):
                 
                 # 3. Execute - Run the worker function for this specific job
                 job = await mock_db.processing_queue.find_one({"video_id": video_id})

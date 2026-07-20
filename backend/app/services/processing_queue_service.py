@@ -15,8 +15,16 @@ from bson import ObjectId
 from app.database import db
 from app.services.transcript_service import transcript_service
 from app.services import embedding_service as embedding_module
-from app.queue import enqueue_quiz_job
+# from app.queue import enqueue_quiz_job  # Removed in favor of direct call
 from app.schemas import ProcessingJobDB
+from app.core.logging import get_logger
+
+logger = get_logger(__name__)
+
+# Late import to avoid circular dependency
+async def _trigger_quiz_generation(video_id: str):
+    from app.worker import generate_quiz_logic
+    await generate_quiz_logic(video_id)
 
 
 class ProcessingQueueWorker:
@@ -29,57 +37,86 @@ class ProcessingQueueWorker:
         self.max_concurrent = max_concurrent
         self._semaphore = asyncio.Semaphore(max_concurrent)
         self.max_retries = 3
+        self._worker_task: Optional[asyncio.Task] = None
+        self._idle_seconds = 0
+        self.idle_timeout = 60  # Shut down after 60s of no jobs
+
+    def ensure_running(self):
+        """Ensure the background worker is running. Start it if it isn't."""
+        if self._worker_task is None or self._worker_task.done():
+            self._worker_task = asyncio.create_task(self.start_worker())
+            logger.info("⚡ Background worker triggered (started on-demand)")
 
     async def start_worker(self):
         """
         Start the background worker loop.
         Processes up to max_concurrent jobs in parallel every poll_interval seconds.
+        Shuts down automatically if idle for too long.
         """
         if self.is_running:
-            print("Processing queue worker already running")
             return
 
         self.is_running = True
-        print(f" Processing queue worker started (max_concurrent={self.max_concurrent})")
+        self._idle_seconds = 0
+        logger.info(f"🚀 Processing queue worker started (concurrency={self.max_concurrent})")
 
         try:
             while self.is_running:
                 try:
-                    await self._process_batch()
+                    jobs_processed = await self._process_batch()
+                    
+                    if jobs_processed == 0:
+                        self._idle_seconds += self.poll_interval
+                        if self._idle_seconds >= self.idle_timeout:
+                            logger.info(f"💤 Worker idle for {self.idle_timeout}s. Shutting down to save resources.")
+                            self.is_running = False
+                            break
+                    else:
+                        self._idle_seconds = 0  # Reset idle timer if we did work
+                        
                 except Exception as e:
-                    print(f"Worker batch error: {e}")
+                    logger.error(f"Worker batch error: {e}", exc_info=True)
 
                 await asyncio.sleep(self.poll_interval)
         except asyncio.CancelledError:
-            print("⏹️  Processing queue worker stopped")
+            logger.info("⏹️  Processing queue worker cancelled")
+        finally:
             self.is_running = False
-            raise
+            self._worker_task = None
+            logger.info("⏹️  Processing queue worker stopped")
 
     async def stop_worker(self):
-        """Stop the background worker"""
+        """Stop the background worker manually"""
         self.is_running = False
-        print("Stopping processing queue worker...")
+        if self._worker_task:
+            self._worker_task.cancel()
+            try:
+                await self._worker_task
+            except asyncio.CancelledError:
+                pass
+        logger.info("Manual stop: Processing queue worker stopped.")
 
     # ------------------------------------------------------------------ #
     #  Core concurrent processing
     # ------------------------------------------------------------------ #
 
-    async def _process_batch(self):
+    async def _process_batch(self) -> int:
         """
         Claim up to max_concurrent pending jobs and process them concurrently.
-        Each job is gated by the semaphore to enforce the concurrency limit.
+        Returns the number of jobs processed.
         """
         jobs = await self._claim_pending_jobs(self.max_concurrent)
         if not jobs:
-            return
+            return 0
 
-        print(f"📦 Processing batch of {len(jobs)} jobs concurrently")
+        logger.info(f"📦 Processing batch of {len(jobs)} jobs concurrently")
         tasks = [
             asyncio.create_task(self._process_with_semaphore(job))
             for job in jobs
         ]
         # Wait for all tasks; exceptions are captured per-task
         await asyncio.gather(*tasks, return_exceptions=True)
+        return len(jobs)
 
     async def _claim_pending_jobs(self, limit: int) -> List[dict]:
         """
@@ -118,7 +155,7 @@ class ProcessingQueueWorker:
           4. Update queue job status
         """
         video_id = job["video_id"]
-        print(f"📹 Processing video: {video_id}")
+        logger.info(f"📹 Processing video: {video_id}")
 
         try:
             # Step 1: Fetch video from database
@@ -127,7 +164,7 @@ class ProcessingQueueWorker:
                 raise Exception(f"Video {video_id} not found in database")
 
             # Step 2: Fetch transcript with rate limiting (2-5s random delay)
-            print(f"  📝 Fetching transcript for {video_id}...")
+            logger.info(f"  📝 Fetching transcript for {video_id}...")
             youtube_video_id = video.get("id", video_id)
 
             transcript = await transcript_service.get_transcript_with_rate_limit(
@@ -138,14 +175,14 @@ class ProcessingQueueWorker:
             if not transcript:
                 raise Exception(f"Failed to fetch transcript for {youtube_video_id}")
 
-            print(f"  ✓ Transcript fetched ({len(transcript)} chars)")
+            logger.info(f"  ✓ Transcript fetched ({len(transcript)} chars)")
 
             # Step 3: Generate and Store Embeddings (Full & Chunked)
-            print(f"  🧠 Generating embeddings for {video_id}...")
+            logger.info(f"  🧠 Generating embeddings for {video_id}...")
             
             # Sub-step 3a: Create chunks for long-form search
             chunks = embedding_module.embedding_service.chunk_text(transcript)
-            print(f"  📦 Created {len(chunks)} chunks for semantic search")
+            logger.info(f"  📦 Created {len(chunks)} chunks for semantic search")
             
             # Sub-step 3b: Batch generate all embeddings (1 for full transcript + 1 per chunk)
             all_texts_to_embed = [transcript] + chunks
@@ -174,12 +211,12 @@ class ProcessingQueueWorker:
                     # Clear old chunks if any and insert new ones
                     await db.video_chunks.delete_many({"video_id": video_id})
                     await db.video_chunks.insert_many(chunk_docs)
-                    print(f"  ✓ Stored {len(chunk_docs)} chunks in video_chunks collection")
+                    logger.info(f"  ✓ Stored {len(chunk_docs)} chunks in video_chunks collection")
 
-            print(f"  ✓ Embeddings generated")
+            logger.info(f"  ✓ Embeddings generated")
 
-            # Step 4: Enqueue Quiz Generation to ARQ
-            await enqueue_quiz_job(video_id)
+            # Step 4: Generate Quiz (Directly instead of ARQ)
+            await _trigger_quiz_generation(video_id)
 
             # Step 5: Update video with full transcript and main embedding
             now = datetime.now(timezone.utc)
@@ -200,7 +237,7 @@ class ProcessingQueueWorker:
             )
 
             if update_result.modified_count == 0:
-                print(f"  ⚠️ Warning: Video {video_id} not updated")
+                logger.warning(f"  ⚠️ Warning: Video {video_id} not updated")
 
             # Step 5: Mark job as completed
             if job.get("_id"):
@@ -214,11 +251,11 @@ class ProcessingQueueWorker:
                     },
                 )
 
-            print(f"  ✅ Video {video_id} processed successfully")
+            logger.info(f"  ✅ Video {video_id} processed successfully")
 
         except Exception as e:
             error_msg = str(e)
-            print(f"  ❌ Error processing {video_id}: {error_msg}")
+            logger.error(f"  ❌ Error processing {video_id}: {error_msg}", exc_info=True)
             await self._handle_job_failure(job, error_msg)
 
     # ------------------------------------------------------------------ #
@@ -253,14 +290,14 @@ class ProcessingQueueWorker:
                 {"id": video_id},
                 {"$set": {"processing_status": "failed"}},
             )
-            print(f"  ⛔ Video {video_id} failed after {retry_count} retries")
+            logger.error(f"  ⛔ Video {video_id} failed after {retry_count} retries")
         else:
             # Exponential backoff: 2^retry seconds with ±20% jitter
             backoff = (2 ** retry_count)
             jitter = backoff * random.uniform(-0.2, 0.2)
             wait_time = backoff + jitter
 
-            print(
+            logger.info(
                 f"  🔄 Retry {retry_count}/{self.max_retries} for {video_id} "
                 f"(backoff {wait_time:.1f}s)"
             )
@@ -298,7 +335,7 @@ class ProcessingQueueWorker:
         try:
             existing = await db.processing_queue.find_one({"video_id": video_id})
             if existing:
-                print(f"Video {video_id} already in queue (status: {existing.get('status')})")
+                logger.info(f"Video {video_id} already in queue (status: {existing.get('status')})")
                 return False
 
             job = ProcessingJobDB(
@@ -312,11 +349,11 @@ class ProcessingQueueWorker:
             )
 
             await db.processing_queue.insert_one(job.model_dump())
-            print(f"✓ Added {video_id} to processing queue (priority: {priority})")
+            logger.info(f"✓ Added {video_id} to processing queue (priority: {priority})")
             return True
 
         except Exception as e:
-            print(f"Error adding {video_id} to queue: {e}")
+            logger.error(f"Error adding {video_id} to queue: {e}", exc_info=True)
             return False
 
     async def add_batch_to_queue(
@@ -440,7 +477,7 @@ class ProcessingQueueWorker:
         )
 
         count = result.modified_count
-        print(f"Reset {count} failed jobs to pending")
+        logger.info(f"Reset {count} failed jobs to pending")
         return count
 
     async def clear_completed_jobs(self, older_than_days: int = 7) -> int:
@@ -462,7 +499,7 @@ class ProcessingQueueWorker:
         )
 
         count = result.deleted_count
-        print(f"🗑️  Removed {count} completed jobs older than {older_than_days} days")
+        logger.info(f"🗑️  Removed {count} completed jobs older than {older_than_days} days")
         return count
 
 

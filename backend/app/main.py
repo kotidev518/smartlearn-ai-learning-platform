@@ -2,13 +2,20 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 import asyncio
+import logging
 
 from .database import init_firebase, ensure_indexes
 from .services.embedding_service import init_embedding_service
 from .routers import auth, courses, analytics, recommendations, admin, vectors
 from .services.processing_queue_service import processing_worker
 from .core.config import settings
+from .core.logging import setup_logging
+from .core.middleware import CorrelationIDMiddleware, RequestLoggingMiddleware
 from .db.session import db_manager
+
+# Initialize Logging
+setup_logging()
+logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -21,9 +28,16 @@ async def lifespan(app: FastAPI):
     yield
     
     # Shutdown
+    logger.info("🛑 Shutting down background processes...")
+    await processing_worker.stop_worker()
     await db_manager.close_db()
 
+
 app = FastAPI(lifespan=lifespan)
+
+# Add Middlewares (Ordered: outer to inner)
+app.add_middleware(RequestLoggingMiddleware)
+app.add_middleware(CorrelationIDMiddleware)
 
 app.add_middleware(
     CORSMiddleware,

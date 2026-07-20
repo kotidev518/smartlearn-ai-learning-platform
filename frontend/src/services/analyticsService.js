@@ -15,8 +15,9 @@ export const analyticsService = {
       const response = await api.get('/analytics/mastery');
       return response.data;
   },
-  getNextRecommendation: async () => {
-    const response = await api.get('/recommendations/next-video');
+  getNextRecommendation: async (courseId) => {
+    const params = courseId ? { course_id: courseId } : {};
+    const response = await api.get('/recommendations/next-video', { params });
     return response.data;
   },
   getOverallProgress: async () => {

@@ -4,34 +4,64 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from app.services.embedding_service import embedding_service
 from app.schemas import Video, NextVideoRecommendation
 from app.utils import get_video_url
+from app.core.logging import get_logger
+
+logger = get_logger(__name__)
 
 class RecommendationService:
     def __init__(self, db: AsyncIOMotorDatabase):
         self.db = db
 
-    async def get_next_video_recommendation(self, user: dict) -> NextVideoRecommendation:
-        """AI-based recommendation using SBERT embeddings and mastery scores"""
+    async def get_next_video_recommendation(
+        self, user: dict, course_id: Optional[str] = None
+    ) -> NextVideoRecommendation:
+        """AI-based recommendation using SBERT embeddings and mastery scores.
+        
+        Recommendations are always scoped to a single course:
+        - If course_id is provided, use it directly.
+        - Otherwise, infer from the user's most recently watched video.
+        """
         user_id = user['id']
         
         # Get user's mastery scores
-        mastery_list = await self.db.mastery_scores.find({"user_id": user_id}, {"_id": 0}).to_list(1000)
+        mastery_list = await self.db.mastery_scores.find(
+            {"user_id": user_id}, {"_id": 0}
+        ).to_list(1000)
         mastery_dict = {m['topic']: m['score'] for m in mastery_list}
         
         # Get user's progress
-        progress_list = await self.db.user_progress.find({"user_id": user_id}, {"_id": 0}).to_list(1000)
+        progress_list = await self.db.user_progress.find(
+            {"user_id": user_id}, {"_id": 0}
+        ).to_list(1000)
         watched_videos = {p['video_id']: p for p in progress_list}
         
-        # Get all videos
-        all_videos = await self.db.videos.find({}, {"_id": 0}).sort("order", 1).to_list(1000)
-        if not all_videos:
-            return None
-        
-        # Get user's last watched video for semantic similarity
+        # Determine the course_id to scope recommendations
         last_watched_video = None
         if progress_list:
-            sorted_progress = sorted(progress_list, key=lambda x: x.get('timestamp', ''), reverse=True)
+            sorted_progress = sorted(
+                progress_list, key=lambda x: x.get('timestamp', ''), reverse=True
+            )
             if sorted_progress:
-                last_watched_video = await self.db.videos.find_one({"id": sorted_progress[0]['video_id']}, {"_id": 0})
+                last_watched_video = await self.db.videos.find_one(
+                    {"id": sorted_progress[0]['video_id']}, {"_id": 0}
+                )
+        
+        # If no course_id provided, infer from last watched video
+        if not course_id and last_watched_video:
+            course_id = last_watched_video.get('course_id')
+        
+        # Build the video query — scoped to course if we have one
+        video_query = {}
+        if course_id:
+            video_query["course_id"] = course_id
+        
+        # Get videos (filtered by course)
+        all_videos = await self.db.videos.find(
+            video_query, {"_id": 0}
+        ).sort("order", 1).to_list(1000)
+        
+        if not all_videos:
+            return None
         
         # Calculate scores for each unwatched video
         candidate_videos = []
@@ -48,7 +78,9 @@ class RecommendationService:
                 })
                 continue
             
-            score, reason = self._calculate_video_score(video, user, mastery_dict, last_watched_video)
+            score, reason = await self._calculate_video_score(
+                video, user, mastery_dict, last_watched_video
+            )
             candidate_videos.append({'video': video, 'score': score, 'reason': reason})
         
         if not candidate_videos:
@@ -70,7 +102,9 @@ class RecommendationService:
             mastery_scores=mastery_dict
         )
 
-    def _calculate_video_score(self, video: dict, user: dict, mastery_dict: dict, last_watched: Optional[dict]) -> Tuple[float, str]:
+    async def _calculate_video_score(
+        self, video: dict, user: dict, mastery_dict: dict, last_watched: Optional[dict]
+    ) -> Tuple[float, str]:
         score = 0
         reasons = []
         
@@ -101,18 +135,37 @@ class RecommendationService:
             score += 15
             reasons.append("Next difficulty level")
         
-        # 3. Semantic similarity (30% weight) - Simplified here, should ideally use a cached embedding
+        # 3. SBERT Semantic similarity (30% weight)
         if last_watched and embedding_service:
-            # Note: In a real app, embeddings should be pre-calculated and stored in DB
-            pass # Skipping on-the-fly encoding for performance in service
+            similarity = await self._compute_sbert_similarity(last_watched, video)
+            if similarity is not None:
+                # Scale similarity (0 to 1) → 0 to 30 points
+                sim_score = similarity * 30
+                score += sim_score
+                if similarity > 0.5:
+                    reasons.append(f"Semantically related (similarity: {similarity:.2f})")
         
         # 4. Sequential ordering (10% weight)
         if video.get('order', 0) < 10:
             score += 10 - video.get('order', 0)
         
-        # 5. Course consistency
-        if last_watched and video['course_id'] == last_watched['course_id']:
-            score += 100
-            reasons.append(f"Continue in '{last_watched.get('course_id', 'this course')}'")
-        
         return score, (reasons[0] if reasons else f"Learn {video['title']}")
+
+    async def _compute_sbert_similarity(
+        self, source_video: dict, target_video: dict
+    ) -> Optional[float]:
+        """Compute SBERT cosine similarity between two videos using pre-computed embeddings."""
+        try:
+            source_embedding = source_video.get('embedding')
+            target_embedding = target_video.get('embedding')
+            
+            if not source_embedding or not target_embedding:
+                return None
+            
+            similarity = await embedding_service.compute_cosine_similarity(
+                source_embedding, target_embedding
+            )
+            return similarity
+        except Exception as e:
+            logger.warning(f"Failed to compute SBERT similarity: {e}")
+            return None
